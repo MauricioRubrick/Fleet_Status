@@ -14,8 +14,13 @@ def normalize_status(value):
 
     if s in ["ok", "running", "healthy", "online"]:
         return "OK"
+
+    if "pending release" in s:
+        return "Pending Release"
+
     if "down" in s or "offline" in s:
         return "Down"
+
     if "issue" in s or "warning" in s:
         return "Running with issues"
 
@@ -47,10 +52,8 @@ def load_workbook(uploaded_file):
             if status_col is None:
                 continue
 
-            # Replace empty values for cleaner display
             df = df.fillna("")
 
-            # Internal normalized values only for KPIs and chart
             normalized_status = df[status_col].apply(normalize_status)
             counts = normalized_status.value_counts()
             fleet_size = len(df)
@@ -59,9 +62,12 @@ def load_workbook(uploaded_file):
                 "Project": sheet,
                 "Fleet Size": fleet_size,
                 "OK": int(counts.get("OK", 0)),
-                "Down": int(counts.get("Down", 0)),
                 "Running with issues": int(
                     counts.get("Running with issues", 0)
+                ),
+                "Down": int(counts.get("Down", 0)),
+                "Pending Release": int(
+                    counts.get("Pending Release", 0)
                 ),
                 "Other": int(counts.get("Other", 0)),
                 "Unknown": int(counts.get("Unknown", 0)),
@@ -86,6 +92,24 @@ def load_workbook(uploaded_file):
     return summary_df, project_details
 
 
+def style_status(val):
+    text = str(val).strip().lower()
+
+    if text in ["ok", "running", "healthy", "online"]:
+        return "color: green; font-weight: bold;"
+
+    if "issue" in text or "warning" in text:
+        return "color: orange; font-weight: bold;"
+
+    if "down" in text or "offline" in text:
+        return "color: red; font-weight: bold;"
+
+    if "pending release" in text:
+        return "color: blue; font-weight: bold;"
+
+    return "font-weight: bold;"
+
+
 uploaded = st.file_uploader(
     "Upload Weekly Service Report Excel",
     type=["xlsx", "xls"]
@@ -99,19 +123,29 @@ if uploaded:
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["OK"],
-        name="OK"
+        name="OK",
+        marker_color="green"
     )
 
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Running with issues"],
-        name="Running with issues"
+        name="Running with issues",
+        marker_color="orange"
+    )
+
+    fig.add_bar(
+        x=summary_df["Project"],
+        y=summary_df["Pending Release"],
+        name="Pending Release",
+        marker_color="blue"
     )
 
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Down"],
-        name="Down"
+        name="Down",
+        marker_color="red"
     )
 
     fig.update_layout(
@@ -136,13 +170,13 @@ if uploaded:
     detail_df = project_details[selected_project].copy().fillna("")
     row = summary_df[summary_df["Project"] == selected_project].iloc[0]
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Fleet Size", int(row["Fleet Size"]))
     c2.metric("OK", int(row["OK"]))
     c3.metric("Issues", int(row["Running with issues"]))
-    c4.metric("Down", int(row["Down"]))
+    c4.metric("Pending", int(row["Pending Release"]))
+    c5.metric("Down", int(row["Down"]))
 
-    # Show full table with wrapped text
     st.markdown(
         """
         <style>
@@ -152,20 +186,30 @@ if uploaded:
             overflow-wrap: break-word !important;
             vertical-align: top !important;
         }
-        .dataframe th {
-            white-space: normal !important;
-        }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    st.dataframe(
-        detail_df,
-        use_container_width=True,
-        height=700,
-        row_height=120
-    )
+    # Style Status column if it exists
+    if "Status" in detail_df.columns:
+        styled_df = detail_df.style.map(
+            style_status,
+            subset=["Status"]
+        )
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=700,
+            row_height=120
+        )
+    else:
+        st.dataframe(
+            detail_df,
+            use_container_width=True,
+            height=700,
+            row_height=120
+        )
 
 else:
     st.info("Upload your Excel file to generate the fleet status dashboard.")
