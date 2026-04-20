@@ -27,6 +27,17 @@ def normalize_status(value):
     return "Other"
 
 
+def clean_dataframe(df):
+    # Remove .000000 from whole-number floats
+    for col in df.columns:
+        df[col] = df[col].apply(
+            lambda x: str(int(x))
+            if isinstance(x, float) and x.is_integer()
+            else x
+        )
+    return df
+
+
 def load_workbook(uploaded_file):
     xls = pd.ExcelFile(uploaded_file)
     project_rows = []
@@ -53,6 +64,7 @@ def load_workbook(uploaded_file):
                 continue
 
             df = df.fillna("")
+            df = clean_dataframe(df)
 
             normalized_status = df[status_col].apply(normalize_status)
             counts = normalized_status.value_counts()
@@ -121,7 +133,6 @@ if uploaded:
 
     fig = go.Figure()
 
-    # OK = soft green
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["OK"],
@@ -129,7 +140,6 @@ if uploaded:
         marker_color="#7DCEA0"
     )
 
-    # Running with issues = soft orange
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Running with issues"],
@@ -137,7 +147,6 @@ if uploaded:
         marker_color="#F5B041"
     )
 
-    # Pending release = soft blue
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Pending Release"],
@@ -145,7 +154,6 @@ if uploaded:
         marker_color="#85C1E9"
     )
 
-    # Down = soft red
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Down"],
