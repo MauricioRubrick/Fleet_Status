@@ -36,13 +36,9 @@ def load_workbook(uploaded_file):
         try:
             df = pd.read_excel(uploaded_file, sheet_name=sheet)
 
-            # Clean headers
             df.columns = [str(c).strip() for c in df.columns]
-
-            # Remove fake blank Excel columns
             df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
 
-            # Detect status column flexibly
             status_col = None
             for col in df.columns:
                 if "status" in col.lower():
@@ -65,10 +61,10 @@ def load_workbook(uploaded_file):
                 "Running with issues": int(
                     counts.get("Running with issues", 0)
                 ),
-                "Down": int(counts.get("Down", 0)),
                 "Pending Release": int(
                     counts.get("Pending Release", 0)
                 ),
+                "Down": int(counts.get("Down", 0)),
                 "Other": int(counts.get("Other", 0)),
                 "Unknown": int(counts.get("Unknown", 0)),
             }
@@ -80,9 +76,7 @@ def load_workbook(uploaded_file):
             st.warning(f"Skipped sheet '{sheet}' due to error: {e}")
 
     if not project_rows:
-        st.error(
-            "No valid sheets found. Could not detect any Status column in the workbook."
-        )
+        st.error("No valid sheets found.")
         st.stop()
 
     summary_df = pd.DataFrame(project_rows).sort_values(
@@ -96,18 +90,18 @@ def style_status(val):
     text = str(val).strip().lower()
 
     if text in ["ok", "running", "healthy", "online"]:
-        return "color: green; font-weight: bold;"
+        return "color:#7FB3D5; font-weight:bold;"
 
     if "issue" in text or "warning" in text:
-        return "color: orange; font-weight: bold;"
-
-    if "down" in text or "offline" in text:
-        return "color: red; font-weight: bold;"
+        return "color:#F5B041; font-weight:bold;"
 
     if "pending release" in text:
-        return "color: blue; font-weight: bold;"
+        return "color:#5DADE2; font-weight:bold;"
 
-    return "font-weight: bold;"
+    if "down" in text or "offline" in text:
+        return "color:#E59898; font-weight:bold;"
+
+    return "font-weight:bold;"
 
 
 uploaded = st.file_uploader(
@@ -120,32 +114,33 @@ if uploaded:
 
     fig = go.Figure()
 
+    # Softer colors (same family, lower contrast)
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["OK"],
         name="OK",
-        marker_color="green"
+        marker_color="#7FB3D5"
     )
 
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Running with issues"],
         name="Running with issues",
-        marker_color="orange"
+        marker_color="#F5B041"
     )
 
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Pending Release"],
         name="Pending Release",
-        marker_color="blue"
+        marker_color="#5DADE2"
     )
 
     fig.add_bar(
         x=summary_df["Project"],
         y=summary_df["Down"],
         name="Down",
-        marker_color="red"
+        marker_color="#E59898"
     )
 
     fig.update_layout(
@@ -191,12 +186,12 @@ if uploaded:
         unsafe_allow_html=True
     )
 
-    # Style Status column if it exists
     if "Status" in detail_df.columns:
         styled_df = detail_df.style.map(
             style_status,
             subset=["Status"]
         )
+
         st.dataframe(
             styled_df,
             use_container_width=True,
