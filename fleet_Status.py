@@ -142,7 +142,30 @@ if uploaded:
     c3.metric("Issues", int(row["Running with issues"]))
     c4.metric("Down", int(row["Down"]))
 
-    st.dataframe(detail_df, use_container_width=True, height=400)
+    # Show full table with wrapped text
+    st.markdown(
+        """
+        <style>
+        .dataframe td {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            vertical-align: top !important;
+        }
+        .dataframe th {
+            white-space: normal !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.dataframe(
+        detail_df,
+        use_container_width=True,
+        height=700,
+        row_height=120
+    )
 
 else:
     st.info("Upload your Excel file to generate the fleet status dashboard.")
