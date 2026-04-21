@@ -175,9 +175,26 @@ if uploaded:
 
     st.subheader("Project Summary")
 
+    # Search + dropdown
+    project_list = summary_df["Project"].tolist()
+
+    search_text = st.text_input(
+        "Search project name",
+        placeholder="Type project name..."
+    )
+
+    filtered_projects = [
+        p for p in project_list
+        if search_text.lower() in p.lower()
+    ]
+
+    if not filtered_projects:
+        st.warning("No project found.")
+        st.stop()
+
     selected_project = st.selectbox(
         "Select a project",
-        summary_df["Project"].tolist()
+        filtered_projects
     )
 
     detail_df = project_details[selected_project].copy().fillna("")
