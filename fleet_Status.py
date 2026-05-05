@@ -28,7 +28,6 @@ def normalize_status(value):
 
 
 def clean_dataframe(df):
-    # Remove .000000 from whole-number floats
     for col in df.columns:
         df[col] = df[col].apply(
             lambda x: str(int(x))
@@ -47,13 +46,9 @@ def load_workbook(uploaded_file):
         try:
             df = pd.read_excel(uploaded_file, sheet_name=sheet)
 
-            # Clean headers
             df.columns = [str(c).strip() for c in df.columns]
-
-            # Remove fake Excel columns
             df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
 
-            # Find status column
             status_col = None
             for col in df.columns:
                 if "status" in col.lower():
@@ -108,18 +103,18 @@ def style_status(val):
     text = str(val).strip().lower()
 
     if text in ["ok", "running", "healthy", "online"]:
-        return "color:#7DCEA0; font-weight:bold;"
+        return "color:#7DCEA0; font-weight:bold; font-size:16px;"
 
     if "issue" in text or "warning" in text:
-        return "color:#F5B041; font-weight:bold;"
+        return "color:#F5B041; font-weight:bold; font-size:16px;"
 
     if "pending release" in text:
-        return "color:#85C1E9; font-weight:bold;"
+        return "color:#85C1E9; font-weight:bold; font-size:16px;"
 
     if "down" in text or "offline" in text:
-        return "color:#E59898; font-weight:bold;"
+        return "color:#E59898; font-weight:bold; font-size:16px;"
 
-    return "font-weight:bold;"
+    return "font-weight:bold; font-size:16px;"
 
 
 uploaded = st.file_uploader(
@@ -164,18 +159,20 @@ if uploaded:
     fig.update_layout(
         barmode="stack",
         title="Fleet Status by Project",
-        xaxis_title="Project",
-        yaxis_title="# Robots",
+        xaxis_title="<b>Project</b>",
+        yaxis_title="<b># Robots</b>",
         height=550,
         xaxis_tickangle=-45,
         hovermode="x unified"
     )
 
+    # 🔥 Make X-axis labels bold
+    fig.update_xaxes(tickfont=dict(size=12, family="Arial Black"))
+
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Project Summary")
 
-    # Search + dropdown
     project_list = summary_df["Project"].tolist()
 
     search_text = st.text_input(
@@ -218,6 +215,7 @@ if uploaded:
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
             vertical-align: top !important;
+            font-size: 15px;
         }
         </style>
         """,
