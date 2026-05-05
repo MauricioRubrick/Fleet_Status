@@ -37,6 +37,43 @@ def clean_dataframe(df):
     return df
 
 
+# 🔥 NEW: Apply styling + links directly into dataframe
+def enhance_dataframe(df):
+
+    df = df.copy()
+
+    # --- STATUS COLOR (HTML injection) ---
+    if "Status" in df.columns:
+        def color_status(val):
+            text = str(val)
+
+            if text.lower() in ["ok", "running", "healthy", "online"]:
+                color = "#7DCEA0"
+            elif "issue" in text.lower() or "warning" in text.lower():
+                color = "#F5B041"
+            elif "pending release" in text.lower():
+                color = "#85C1E9"
+            elif "down" in text.lower() or "offline" in text.lower():
+                color = "#E59898"
+            else:
+                color = "black"
+
+            return f'<span style="color:{color}; font-weight:bold;">{text}</span>'
+
+        df["Status"] = df["Status"].apply(color_status)
+
+    # --- CLICKABLE LINKS ---
+    for col in ["OTE", "Extra", "Tracking"]:
+        if col in df.columns:
+            df[col] = df[col].apply(
+                lambda x: f'<a href="{x}" target="_blank">🔗 Link</a>'
+                if str(x).startswith("http")
+                else x
+            )
+
+    return df
+
+
 def load_workbook(uploaded_file):
     xls = pd.ExcelFile(uploaded_file)
     project_rows = []
@@ -94,24 +131,6 @@ def load_workbook(uploaded_file):
     return summary_df, project_details
 
 
-def style_status(val):
-    text = str(val).strip().lower()
-
-    if text in ["ok", "running", "healthy", "online"]:
-        return "color:#7DCEA0; font-weight:bold; font-size:30px;"
-
-    if "issue" in text or "warning" in text:
-        return "color:#F5B041; font-weight:bold; font-size:30px;"
-
-    if "pending release" in text:
-        return "color:#85C1E9; font-weight:bold; font-size:30px;"
-
-    if "down" in text or "offline" in text:
-        return "color:#E59898; font-weight:bold; font-size:30px;"
-
-    return "font-weight:bold; font-size:30px;"
-
-
 uploaded = st.file_uploader(
     "Upload Weekly Service Report Excel",
     type=["xlsx", "xls"]
@@ -123,33 +142,10 @@ if uploaded:
 
     fig = go.Figure()
 
-    fig.add_bar(
-        x=summary_df["Project"],
-        y=summary_df["OK"],
-        name="OK",
-        marker_color="#7DCEA0"
-    )
-
-    fig.add_bar(
-        x=summary_df["Project"],
-        y=summary_df["Running with issues"],
-        name="Running with issues",
-        marker_color="#F5B041"
-    )
-
-    fig.add_bar(
-        x=summary_df["Project"],
-        y=summary_df["Pending Release"],
-        name="Pending Release",
-        marker_color="#85C1E9"
-    )
-
-    fig.add_bar(
-        x=summary_df["Project"],
-        y=summary_df["Down"],
-        name="Down",
-        marker_color="#E59898"
-    )
+    fig.add_bar(x=summary_df["Project"], y=summary_df["OK"], name="OK", marker_color="#7DCEA0")
+    fig.add_bar(x=summary_df["Project"], y=summary_df["Running with issues"], name="Running with issues", marker_color="#F5B041")
+    fig.add_bar(x=summary_df["Project"], y=summary_df["Pending Release"], name="Pending Release", marker_color="#85C1E9")
+    fig.add_bar(x=summary_df["Project"], y=summary_df["Down"], name="Down", marker_color="#E59898")
 
     fig.update_layout(
         barmode="stack",
@@ -169,63 +165,38 @@ if uploaded:
 
     project_list = summary_df["Project"].tolist()
 
-    search_text = st.text_input(
-        "Search project name",
-        placeholder="Type project name..."
-    )
+    search_text = st.text_input("Search project name")
 
     filtered_projects = [
-        p for p in project_list
-        if search_text.lower() in p.lower()
+        p for p in project_list if search_text.lower() in p.lower()
     ]
 
     if not filtered_projects:
         st.warning("No project found.")
         st.stop()
 
-    selected_project = st.selectbox(
-        "Select a project",
-        filtered_projects
-    )
+    selected_project = st.selectbox("Select a project", filtered_projects)
 
     detail_df = project_details[selected_project].copy().fillna("")
-    row = summary_df[
-        summary_df["Project"] == selected_project
-    ].iloc[0]
+    detail_df = enhance_dataframe(detail_df)
+
+    row = summary_df[summary_df["Project"] == selected_project].iloc[0]
 
     c1, c2, c3, c4, c5 = st.columns(5)
-
     c1.metric("Fleet Size", int(row["Fleet Size"]))
     c2.metric("OK", int(row["OK"]))
     c3.metric("Issues", int(row["Running with issues"]))
     c4.metric("Pending", int(row["Pending Release"]))
     c5.metric("Down", int(row["Down"]))
 
-    # --- TABLE RENDER ---
-    if "Status" in detail_df.columns:
-        styled_df = (
-            detail_df.style
-            .map(style_status, subset=["Status"])
-            .set_properties(**{"font-size": "16px"})
-        )
-    else:
-        styled_df = detail_df.style.set_properties(**{"font-size": "16px"})
-
-    html_table = styled_df.to_html(escape=False)
+    html_table = detail_df.to_html(escape=False)
 
     st.markdown(
         f"""
         <style>
-        table {{
-            font-size: 18px !important;
-        }}
-        td {{
-            font-size: 18px !important;
-            white-space: pre-wrap !important;
-        }}
-        th {{
-            font-size: 18px !important;
-        }}
+        table {{ font-size: 18px; }}
+        td {{ white-space: pre-wrap; }}
+        th {{ font-size: 18px; }}
         </style>
 
         <div style="overflow-x:auto; height:700px;">
@@ -236,6 +207,4 @@ if uploaded:
     )
 
 else:
-    st.info(
-        "Upload your Excel file to generate the fleet status dashboard."
-    )
+    st.info("Upload your Excel file to generate the fleet status dashboard.")
