@@ -215,7 +215,7 @@ if uploaded:
             word-wrap: break-word !important;
             overflow-wrap: break-word !important;
             vertical-align: top !important;
-            font-size: 15px;
+            font-size: 20px;
         }
         </style>
         """,
