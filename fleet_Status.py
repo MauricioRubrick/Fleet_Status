@@ -70,12 +70,8 @@ def load_workbook(uploaded_file):
                 "Project": sheet,
                 "Fleet Size": fleet_size,
                 "OK": int(counts.get("OK", 0)),
-                "Running with issues": int(
-                    counts.get("Running with issues", 0)
-                ),
-                "Pending Release": int(
-                    counts.get("Pending Release", 0)
-                ),
+                "Running with issues": int(counts.get("Running with issues", 0)),
+                "Pending Release": int(counts.get("Pending Release", 0)),
                 "Down": int(counts.get("Down", 0)),
                 "Other": int(counts.get("Other", 0)),
                 "Unknown": int(counts.get("Unknown", 0)),
@@ -92,8 +88,7 @@ def load_workbook(uploaded_file):
         st.stop()
 
     summary_df = pd.DataFrame(project_rows).sort_values(
-        "Fleet Size",
-        ascending=False
+        "Fleet Size", ascending=False
     )
 
     return summary_df, project_details
@@ -166,7 +161,6 @@ if uploaded:
         hovermode="x unified"
     )
 
-    # 🔥 Make X-axis labels bold
     fig.update_xaxes(tickfont=dict(size=14, family="Arial Black"))
 
     st.plotly_chart(fig, use_container_width=True)
@@ -207,60 +201,41 @@ if uploaded:
     c4.metric("Pending", int(row["Pending Release"]))
     c5.metric("Down", int(row["Down"]))
 
-   st.markdown(
-    f"""
-    <style>
-    table {{
-        font-size: 18px !important;
-    }}
-    td {{
-        font-size: 18px !important;
-        white-space: pre-wrap !important;
-    }}
-    th {{
-        font-size: 18px !important;
-    }}
-    </style>
-
-    <div style="overflow-x:auto; height:700px;">
-        {html_table}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-  # Build styled HTML table so font sizes/colors actually apply
-if "Status" in detail_df.columns:
-    styled_df = detail_df.style.map(
-        style_status,
-        subset=["Status"]
-    ).set_properties(**{"font-size": "16px"})  # all columns
+    # --- TABLE RENDER ---
+    if "Status" in detail_df.columns:
+        styled_df = (
+            detail_df.style
+            .map(style_status, subset=["Status"])
+            .set_properties(**{"font-size": "16px"})
+        )
+    else:
+        styled_df = detail_df.style.set_properties(**{"font-size": "16px"})
 
     html_table = styled_df.to_html(escape=False)
 
     st.markdown(
         f"""
+        <style>
+        table {{
+            font-size: 18px !important;
+        }}
+        td {{
+            font-size: 18px !important;
+            white-space: pre-wrap !important;
+        }}
+        th {{
+            font-size: 18px !important;
+        }}
+        </style>
+
         <div style="overflow-x:auto; height:700px;">
             {html_table}
         </div>
         """,
         unsafe_allow_html=True
     )
+
 else:
-    html_table = detail_df.style.set_properties(
-        **{"font-size": "16px"}
-    ).to_html(escape=False)
-
-    st.markdown(
-        f"""
-        <div style="overflow-x:auto; height:700px;">
-            {html_table}
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.info(
+        "Upload your Excel file to generate the fleet status dashboard."
     )
-
-    else:
-        st.info(
-            "Upload your Excel file to generate the fleet status dashboard."
-        )
