@@ -222,25 +222,36 @@ if uploaded:
         unsafe_allow_html=True
     )
 
-    if "Status" in detail_df.columns:
-        styled_df = detail_df.style.map(
-            style_status,
-            subset=["Status"]
-        )
+  # Build styled HTML table so font sizes/colors actually apply
+if "Status" in detail_df.columns:
+    styled_df = detail_df.style.map(
+        style_status,
+        subset=["Status"]
+    ).set_properties(**{"font-size": "16px"})  # all columns
 
-        st.dataframe(
-            styled_df,
-            use_container_width=True,
-            height=700,
-            row_height=120
-        )
-    else:
-        st.dataframe(
-            detail_df,
-            use_container_width=True,
-            height=700,
-            row_height=120
-        )
+    html_table = styled_df.to_html(escape=False)
+
+    st.markdown(
+        f"""
+        <div style="overflow-x:auto; height:700px;">
+            {html_table}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    html_table = detail_df.style.set_properties(
+        **{"font-size": "16px"}
+    ).to_html(escape=False)
+
+    st.markdown(
+        f"""
+        <div style="overflow-x:auto; height:700px;">
+            {html_table}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 else:
     st.info(
