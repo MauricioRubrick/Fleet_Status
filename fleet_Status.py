@@ -103,18 +103,18 @@ def style_status(val):
     text = str(val).strip().lower()
 
     if text in ["ok", "running", "healthy", "online"]:
-        return "color:#7DCEA0; font-weight:bold; font-size:20px;"
+        return "color:#7DCEA0; font-weight:bold; font-size:30px;"
 
     if "issue" in text or "warning" in text:
-        return "color:#F5B041; font-weight:bold; font-size:20px;"
+        return "color:#F5B041; font-weight:bold; font-size:30px;"
 
     if "pending release" in text:
-        return "color:#85C1E9; font-weight:bold; font-size:20px;"
+        return "color:#85C1E9; font-weight:bold; font-size:30px;"
 
     if "down" in text or "offline" in text:
-        return "color:#E59898; font-weight:bold; font-size:20px;"
+        return "color:#E59898; font-weight:bold; font-size:30px;"
 
-    return "font-weight:bold; font-size:20px;"
+    return "font-weight:bold; font-size:30px;"
 
 
 uploaded = st.file_uploader(
