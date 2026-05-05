@@ -253,7 +253,7 @@ else:
         unsafe_allow_html=True
     )
 
-else:
-    st.info(
-        "Upload your Excel file to generate the fleet status dashboard."
-    )
+    else:
+        st.info(
+            "Upload your Excel file to generate the fleet status dashboard."
+        )
