@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Fleet Status Report", layout="wide")
-st.title("📊 BEHR Fleet Status")
+st.title("📊 BEHR - Fleet Status")
 
 
 def normalize_status(value):
