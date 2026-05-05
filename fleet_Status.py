@@ -207,20 +207,27 @@ if uploaded:
     c4.metric("Pending", int(row["Pending Release"]))
     c5.metric("Down", int(row["Down"]))
 
-    st.markdown(
-        """
-        <style>
-        .dataframe td {
-            white-space: pre-wrap !important;
-            word-wrap: break-word !important;
-            overflow-wrap: break-word !important;
-            vertical-align: top !important;
-            font-size: 20px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+   st.markdown(
+    f"""
+    <style>
+    table {{
+        font-size: 18px !important;
+    }}
+    td {{
+        font-size: 18px !important;
+        white-space: pre-wrap !important;
+    }}
+    th {{
+        font-size: 18px !important;
+    }}
+    </style>
+
+    <div style="overflow-x:auto; height:700px;">
+        {html_table}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
   # Build styled HTML table so font sizes/colors actually apply
 if "Status" in detail_df.columns:
