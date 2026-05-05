@@ -14,13 +14,10 @@ def normalize_status(value):
 
     if s in ["ok", "running", "healthy", "online"]:
         return "OK"
-
     if "pending release" in s:
         return "Pending Release"
-
     if "down" in s or "offline" in s:
         return "Down"
-
     if "issue" in s or "warning" in s:
         return "Running with issues"
 
@@ -37,36 +34,35 @@ def clean_dataframe(df):
     return df
 
 
-# 🔥 NEW: Apply styling + links directly into dataframe
 def enhance_dataframe(df):
-
     df = df.copy()
 
-    # --- STATUS COLOR (HTML injection) ---
+    # STATUS COLORS
     if "Status" in df.columns:
         def color_status(val):
-            text = str(val)
+            txt = str(val)
+            s = txt.lower()
 
-            if text.lower() in ["ok", "running", "healthy", "online"]:
+            if s in ["ok", "running", "healthy", "online"]:
                 color = "#7DCEA0"
-            elif "issue" in text.lower() or "warning" in text.lower():
+            elif "issue" in s or "warning" in s:
                 color = "#F5B041"
-            elif "pending release" in text.lower():
+            elif "pending release" in s:
                 color = "#85C1E9"
-            elif "down" in text.lower() or "offline" in text.lower():
+            elif "down" in s or "offline" in s:
                 color = "#E59898"
             else:
-                color = "black"
+                color = "white"
 
-            return f'<span style="color:{color}; font-weight:bold;">{text}</span>'
+            return f'<span style="color:{color}; font-weight:bold;">{txt}</span>'
 
         df["Status"] = df["Status"].apply(color_status)
 
-    # --- CLICKABLE LINKS ---
+    # CLICKABLE LINKS
     for col in ["OTE", "Extra", "Tracking"]:
         if col in df.columns:
             df[col] = df[col].apply(
-                lambda x: f'<a href="{x}" target="_blank">🔗 Link</a>'
+                lambda x: f'<a href="{x}" target="_blank">🔗 Open</a>'
                 if str(x).startswith("http")
                 else x
             )
@@ -86,35 +82,25 @@ def load_workbook(uploaded_file):
             df.columns = [str(c).strip() for c in df.columns]
             df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
 
-            status_col = None
-            for col in df.columns:
-                if "status" in col.lower():
-                    status_col = col
-                    break
-
+            status_col = next((c for c in df.columns if "status" in c.lower()), None)
             if status_col is None:
                 continue
 
             df = df.fillna("")
             df = clean_dataframe(df)
 
-            normalized_status = df[status_col].apply(normalize_status)
-            counts = normalized_status.value_counts()
+            normalized = df[status_col].apply(normalize_status)
+            counts = normalized.value_counts()
 
-            fleet_size = len(df)
-
-            row = {
+            project_rows.append({
                 "Project": sheet,
-                "Fleet Size": fleet_size,
-                "OK": int(counts.get("OK", 0)),
-                "Running with issues": int(counts.get("Running with issues", 0)),
-                "Pending Release": int(counts.get("Pending Release", 0)),
-                "Down": int(counts.get("Down", 0)),
-                "Other": int(counts.get("Other", 0)),
-                "Unknown": int(counts.get("Unknown", 0)),
-            }
+                "Fleet Size": len(df),
+                "OK": counts.get("OK", 0),
+                "Running with issues": counts.get("Running with issues", 0),
+                "Pending Release": counts.get("Pending Release", 0),
+                "Down": counts.get("Down", 0),
+            })
 
-            project_rows.append(row)
             project_details[sheet] = df
 
         except Exception as e:
@@ -124,22 +110,17 @@ def load_workbook(uploaded_file):
         st.error("No valid sheets found.")
         st.stop()
 
-    summary_df = pd.DataFrame(project_rows).sort_values(
-        "Fleet Size", ascending=False
-    )
-
+    summary_df = pd.DataFrame(project_rows).sort_values("Fleet Size", ascending=False)
     return summary_df, project_details
 
 
-uploaded = st.file_uploader(
-    "Upload Weekly Service Report Excel",
-    type=["xlsx", "xls"]
-)
+uploaded = st.file_uploader("Upload Weekly Service Report Excel", type=["xlsx", "xls"])
 
 if uploaded:
 
     summary_df, project_details = load_workbook(uploaded)
 
+    # ----- GRAPH -----
     fig = go.Figure()
 
     fig.add_bar(x=summary_df["Project"], y=summary_df["OK"], name="OK", marker_color="#7DCEA0")
@@ -149,36 +130,26 @@ if uploaded:
 
     fig.update_layout(
         barmode="stack",
-        title="Fleet Status by Project",
         xaxis_title="<b>Project</b>",
         yaxis_title="<b># Robots</b>",
         height=550,
-        xaxis_tickangle=-45,
-        hovermode="x unified"
+        xaxis_tickangle=-45
     )
 
     fig.update_xaxes(tickfont=dict(size=14, family="Arial Black"))
-
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Project Summary")
+    # ----- PROJECT SELECTION -----
+    search = st.text_input("Search project")
+    projects = [p for p in summary_df["Project"] if search.lower() in p.lower()]
 
-    project_list = summary_df["Project"].tolist()
-
-    search_text = st.text_input("Search project name")
-
-    filtered_projects = [
-        p for p in project_list if search_text.lower() in p.lower()
-    ]
-
-    if not filtered_projects:
-        st.warning("No project found.")
+    if not projects:
+        st.warning("No project found")
         st.stop()
 
-    selected_project = st.selectbox("Select a project", filtered_projects)
+    selected_project = st.selectbox("Select project", projects)
 
-    detail_df = project_details[selected_project].copy().fillna("")
-    detail_df = enhance_dataframe(detail_df)
+    detail_df = enhance_dataframe(project_details[selected_project])
 
     row = summary_df[summary_df["Project"] == selected_project].iloc[0]
 
@@ -189,14 +160,32 @@ if uploaded:
     c4.metric("Pending", int(row["Pending Release"]))
     c5.metric("Down", int(row["Down"]))
 
-    html_table = detail_df.to_html(escape=False)
+    # ----- TABLE -----
+    html_table = detail_df.to_html(escape=False, index=False)
 
     st.markdown(
         f"""
         <style>
-        table {{ font-size: 18px; }}
-        td {{ white-space: pre-wrap; }}
-        th {{ font-size: 18px; }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 16px;
+        }}
+        th {{
+            background-color: #1f2c3a;
+            color: white;
+            padding: 8px;
+            text-align: left;
+        }}
+        td {{
+            padding: 8px;
+            border-bottom: 1px solid #444;
+            vertical-align: top;
+            white-space: pre-wrap;
+        }}
+        tr:hover {{
+            background-color: #2c3e50;
+        }}
         </style>
 
         <div style="overflow-x:auto; height:700px;">
@@ -207,4 +196,4 @@ if uploaded:
     )
 
 else:
-    st.info("Upload your Excel file to generate the fleet status dashboard.")
+    st.info("Upload your Excel file to generate the dashboard.")
