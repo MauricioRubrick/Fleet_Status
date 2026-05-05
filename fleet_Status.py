@@ -3,7 +3,23 @@ import pandas as pd
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Fleet Status Report", layout="wide")
-st.title("📊 Fleet Status")
+import base64
+
+def get_base64_image(image_path):
+    with open(image_path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+logo = get_base64_image("behr_logo.png")
+
+st.markdown(
+    f"""
+    <div style="display:flex; align-items:center; gap:10px;">
+        <img src="data:image/png;base64,{logo}" width="40">
+        <h1 style="margin:0;">Fleet Status by Project</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 def normalize_status(value):
