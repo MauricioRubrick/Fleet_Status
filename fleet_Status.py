@@ -157,14 +157,20 @@ if uploaded:
     )
 
     fig.update_layout(
-        barmode="stack",
-        title="Fleet Status by Project",
-        xaxis_title="<b>Project</b>",
-        yaxis_title="<b># Robots</b>",
-        height=550,
-        xaxis_tickangle=-45,
-        hovermode="x unified"
-    )
+    barmode="stack",
+    title="Fleet Status",
+    xaxis=dict(
+        title="<b>Project</b>",
+        title_font=dict(size=20)   # 👈 change this number
+    ),
+    yaxis=dict(
+        title="<b># Robots</b>",
+        title_font=dict(size=20)   # 👈 change this number
+    ),
+    height=550,
+    xaxis_tickangle=-45,
+    hovermode="x unified"
+)
 
     # 🔥 Make X-axis labels bold
     fig.update_xaxes(tickfont=dict(size=12, family="Arial Black"))
