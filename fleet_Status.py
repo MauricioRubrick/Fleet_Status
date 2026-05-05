@@ -36,18 +36,10 @@ def clean_dataframe(df):
     return df
 
 
-# 🔥 Extract hyperlinks from Excel properly
-def extract_links(ws):
-    links = {}
-    for row in ws.iter_rows():
-        for cell in row:
-            if cell.hyperlink:
-                links[(cell.row - 1, cell.column - 1)] = cell.hyperlink.target
-    return links
-
-
+# -------- LOAD EXCEL WITH HYPERLINKS --------
 def load_workbook_with_links(uploaded_file):
-    wb = load_workbook(BytesIO(uploaded_file.read()), data_only=True)
+    file_bytes = BytesIO(uploaded_file.read())
+    wb = load_workbook(file_bytes, data_only=True)
 
     project_rows = []
     project_details = {}
@@ -64,18 +56,18 @@ def load_workbook_with_links(uploaded_file):
         df = df.fillna("")
         df = clean_dataframe(df)
 
-        links = extract_links(ws)
-
-        # Inject hyperlinks
+        # --- Extract hyperlinks ---
         for col_name in ["OTE", "Extra", "Tracking"]:
             if col_name in df.columns:
                 col_idx = df.columns.get_loc(col_name)
-                for i in range(len(df)):
-                    link = links.get((i + 1, col_idx))
-                    if link:
-                        df.iloc[i, col_idx] = f'<a href="{link}" target="_blank">🔗 Open</a>'
 
-        # Status normalization
+                for row in range(len(df)):
+                    cell = ws.cell(row=row + 2, column=col_idx + 1)
+                    if cell.hyperlink:
+                        link = cell.hyperlink.target
+                        df.iloc[row, col_idx] = f'<a href="{link}" target="_blank">{link}</a>'
+
+        # --- Status normalization ---
         status_col = next((c for c in df.columns if "status" in c.lower()), None)
         if not status_col:
             continue
@@ -92,8 +84,8 @@ def load_workbook_with_links(uploaded_file):
             "Down": counts.get("Down", 0),
         })
 
-        # Status color formatting
-        def format_status(val):
+        # --- Style status (bigger + colored) ---
+        def style_status(val):
             txt = str(val)
             s = txt.lower()
 
@@ -106,11 +98,11 @@ def load_workbook_with_links(uploaded_file):
             elif "down" in s or "offline" in s:
                 color = "#E59898"
             else:
-                color = "white"
+                color = "inherit"
 
-            return f'<span style="color:{color}; font-weight:bold; font-size:20px;">{txt}</span>'
+            return f'<span style="color:{color}; font-weight:bold; font-size:18px;">{txt}</span>'
 
-        df[status_col] = df[status_col].apply(format_status)
+        df[status_col] = df[status_col].apply(style_status)
 
         project_details[sheet_name] = df
 
@@ -118,6 +110,7 @@ def load_workbook_with_links(uploaded_file):
     return summary_df, project_details
 
 
+# -------- FILE UPLOAD --------
 uploaded = st.file_uploader("Upload Excel", type=["xlsx", "xls"])
 
 if uploaded:
@@ -132,39 +125,77 @@ if uploaded:
     fig.add_bar(x=summary_df["Project"], y=summary_df["Pending Release"], name="Pending", marker_color="#85C1E9")
     fig.add_bar(x=summary_df["Project"], y=summary_df["Down"], name="Down", marker_color="#E59898")
 
-    fig.update_layout(barmode="stack", height=550)
+    fig.update_layout(
+        barmode="stack",
+        xaxis_title="<b>Project</b>",
+        yaxis_title="<b># Robots</b>",
+        height=550,
+        xaxis_tickangle=-45
+    )
+
+    fig.update_xaxes(tickfont=dict(size=12, family="Arial Black"))
+
     st.plotly_chart(fig, use_container_width=True)
 
-    # -------- SELECT --------
-    project = st.selectbox("Select project", summary_df["Project"])
-    df = project_details[project]
+    # -------- PROJECT SELECT --------
+    st.subheader("Project Summary")
 
-    # -------- TABLE --------
-    html_table = df.to_html(index=False, escape=False)
+    search = st.text_input("Search project")
+
+    projects = [p for p in summary_df["Project"] if search.lower() in p.lower()]
+
+    if not projects:
+        st.warning("No project found")
+        st.stop()
+
+    selected_project = st.selectbox("Select project", projects)
+
+    detail_df = project_details[selected_project]
+
+    row = summary_df[summary_df["Project"] == selected_project].iloc[0]
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Fleet Size", int(row["Fleet Size"]))
+    c2.metric("OK", int(row["OK"]))
+    c3.metric("Issues", int(row["Running with issues"]))
+    c4.metric("Pending", int(row["Pending Release"]))
+    c5.metric("Down", int(row["Down"]))
+
+    # -------- TABLE (FIXED RENDER) --------
+    html_table = detail_df.to_html(index=False, escape=False)
+
+    st.markdown(
+        """
+        <style>
+        .fleet-table table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+        .fleet-table th {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 2px solid #555;
+        }
+        .fleet-table td {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            vertical-align: top;
+            white-space: pre-wrap;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.markdown(
         f"""
-        <style>
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 16px;
-        }}
-        th, td {{
-            padding: 10px;
-            border-bottom: 1px solid #333;
-            vertical-align: top;
-        }}
-        td {{
-            white-space: normal;
-            word-break: break-word;
-        }}
-        </style>
-
-        {html_table}
+        <div class="fleet-table" style="overflow-x:auto; height:700px;">
+            {html_table}
+        </div>
         """,
         unsafe_allow_html=True
     )
 
 else:
-    st.info("Upload your Excel file")
+    st.info("Upload your Excel file to generate the fleet status dashboard.")
