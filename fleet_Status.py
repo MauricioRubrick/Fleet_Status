@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from openpyxl import load_workbook
+from io import BytesIO
 
 st.set_page_config(page_title="Fleet Status Report", layout="wide")
 st.title("📊 Fleet Status by Project")
@@ -34,56 +36,63 @@ def clean_dataframe(df):
     return df
 
 
-def load_workbook(uploaded_file):
-    xls = pd.ExcelFile(uploaded_file)
+# 🔥 Extract hyperlinks from Excel properly
+def extract_links(ws):
+    links = {}
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.hyperlink:
+                links[(cell.row - 1, cell.column - 1)] = cell.hyperlink.target
+    return links
+
+
+def load_workbook_with_links(uploaded_file):
+    wb = load_workbook(BytesIO(uploaded_file.read()), data_only=True)
+
     project_rows = []
     project_details = {}
 
-    for sheet in xls.sheet_names:
-        try:
-            df = pd.read_excel(uploaded_file, sheet_name=sheet)
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
 
-            df.columns = [str(c).strip() for c in df.columns]
-            df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
+        data = list(ws.values)
+        if not data or len(data) < 2:
+            continue
 
-            status_col = next((c for c in df.columns if "status" in c.lower()), None)
-            if status_col is None:
-                continue
+        df = pd.DataFrame(data[1:], columns=[str(c).strip() for c in data[0]])
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed", case=False)]
+        df = df.fillna("")
+        df = clean_dataframe(df)
 
-            df = df.fillna("")
-            df = clean_dataframe(df)
+        links = extract_links(ws)
 
-            normalized_status = df[status_col].apply(normalize_status)
-            counts = normalized_status.value_counts()
+        # Inject hyperlinks
+        for col_name in ["OTE", "Extra", "Tracking"]:
+            if col_name in df.columns:
+                col_idx = df.columns.get_loc(col_name)
+                for i in range(len(df)):
+                    link = links.get((i + 1, col_idx))
+                    if link:
+                        df.iloc[i, col_idx] = f'<a href="{link}" target="_blank">🔗 Open</a>'
 
-            project_rows.append({
-                "Project": sheet,
-                "Fleet Size": len(df),
-                "OK": int(counts.get("OK", 0)),
-                "Running with issues": int(counts.get("Running with issues", 0)),
-                "Pending Release": int(counts.get("Pending Release", 0)),
-                "Down": int(counts.get("Down", 0)),
-            })
+        # Status normalization
+        status_col = next((c for c in df.columns if "status" in c.lower()), None)
+        if not status_col:
+            continue
 
-            project_details[sheet] = df
+        normalized = df[status_col].apply(normalize_status)
+        counts = normalized.value_counts()
 
-        except Exception as e:
-            st.warning(f"Skipped sheet '{sheet}' due to error: {e}")
+        project_rows.append({
+            "Project": sheet_name,
+            "Fleet Size": len(df),
+            "OK": counts.get("OK", 0),
+            "Running with issues": counts.get("Running with issues", 0),
+            "Pending Release": counts.get("Pending Release", 0),
+            "Down": counts.get("Down", 0),
+        })
 
-    if not project_rows:
-        st.error("No valid sheets found.")
-        st.stop()
-
-    summary_df = pd.DataFrame(project_rows).sort_values("Fleet Size", ascending=False)
-    return summary_df, project_details
-
-
-# 🔥 Table enhancement (safe + stable)
-def enhance_table(df):
-    df = df.copy()
-
-    # Status color + size
-    if "Status" in df.columns:
+        # Status color formatting
         def format_status(val):
             txt = str(val)
             s = txt.lower()
@@ -99,108 +108,63 @@ def enhance_table(df):
             else:
                 color = "white"
 
-            return f'<span style="color:{color}; font-weight:bold; font-size:18px;">{txt}</span>'
+            return f'<span style="color:{color}; font-weight:bold; font-size:20px;">{txt}</span>'
 
-        df["Status"] = df["Status"].apply(format_status)
+        df[status_col] = df[status_col].apply(format_status)
 
-    # Clickable hyperlinks
-    for col in ["OTE", "Extra", "Tracking"]:
-        if col in df.columns:
-            df[col] = df[col].apply(
-                lambda x: f'<a href="{x}" target="_blank">{x}</a>'
-                if isinstance(x, str) and x.startswith("http")
-                else x
-            )
+        project_details[sheet_name] = df
 
-    return df
+    summary_df = pd.DataFrame(project_rows).sort_values("Fleet Size", ascending=False)
+    return summary_df, project_details
 
 
-uploaded = st.file_uploader(
-    "Upload Weekly Service Report Excel",
-    type=["xlsx", "xls"]
-)
+uploaded = st.file_uploader("Upload Excel", type=["xlsx", "xls"])
 
 if uploaded:
 
-    summary_df, project_details = load_workbook(uploaded)
+    summary_df, project_details = load_workbook_with_links(uploaded)
 
-    # ---------- GRAPH ----------
+    # -------- GRAPH --------
     fig = go.Figure()
 
     fig.add_bar(x=summary_df["Project"], y=summary_df["OK"], name="OK", marker_color="#7DCEA0")
-    fig.add_bar(x=summary_df["Project"], y=summary_df["Running with issues"], name="Running with issues", marker_color="#F5B041")
-    fig.add_bar(x=summary_df["Project"], y=summary_df["Pending Release"], name="Pending Release", marker_color="#85C1E9")
+    fig.add_bar(x=summary_df["Project"], y=summary_df["Running with issues"], name="Issues", marker_color="#F5B041")
+    fig.add_bar(x=summary_df["Project"], y=summary_df["Pending Release"], name="Pending", marker_color="#85C1E9")
     fig.add_bar(x=summary_df["Project"], y=summary_df["Down"], name="Down", marker_color="#E59898")
 
-    fig.update_layout(
-        barmode="stack",
-        xaxis_title="<b>Project</b>",
-        yaxis_title="<b># Robots</b>",
-        height=550,
-        xaxis_tickangle=-45
-    )
-
-    fig.update_xaxes(tickfont=dict(size=12, family="Arial Black"))
-
+    fig.update_layout(barmode="stack", height=550)
     st.plotly_chart(fig, use_container_width=True)
 
-    # ---------- PROJECT SELECT ----------
-    st.subheader("Project Summary")
+    # -------- SELECT --------
+    project = st.selectbox("Select project", summary_df["Project"])
+    df = project_details[project]
 
-    search_text = st.text_input("Search project")
-
-    projects = [
-        p for p in summary_df["Project"]
-        if search_text.lower() in p.lower()
-    ]
-
-    if not projects:
-        st.warning("No project found")
-        st.stop()
-
-    selected_project = st.selectbox("Select project", projects)
-
-    detail_df = project_details[selected_project].copy().fillna("")
-    detail_df = enhance_table(detail_df)
-
-    row = summary_df[summary_df["Project"] == selected_project].iloc[0]
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Fleet Size", int(row["Fleet Size"]))
-    c2.metric("OK", int(row["OK"]))
-    c3.metric("Issues", int(row["Running with issues"]))
-    c4.metric("Pending", int(row["Pending Release"]))
-    c5.metric("Down", int(row["Down"]))
-
-    # ---------- TABLE ----------
-    html_table = detail_df.to_html(index=False, escape=False)
+    # -------- TABLE --------
+    html_table = df.to_html(index=False, escape=False)
 
     st.markdown(
         f"""
-        <div style="overflow-x:auto; height:700px;">
         <style>
         table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 15px;
+            font-size: 16px;
         }}
-        th {{
-            text-align: left;
-            padding: 8px;
-            border-bottom: 2px solid #555;
-        }}
-        td {{
-            padding: 8px;
+        th, td {{
+            padding: 10px;
             border-bottom: 1px solid #333;
             vertical-align: top;
-            white-space: pre-wrap;
+        }}
+        td {{
+            white-space: normal;
+            word-break: break-word;
         }}
         </style>
+
         {html_table}
-        </div>
         """,
         unsafe_allow_html=True
     )
 
 else:
-    st.info("Upload your Excel file to generate the fleet status dashboard.")
+    st.info("Upload your Excel file")
