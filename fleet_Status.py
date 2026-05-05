@@ -3,18 +3,12 @@ import pandas as pd
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Fleet Status Report", layout="wide")
-import base64
 
-def get_base64_image(image_path):
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-logo = get_base64_image("behr_logo.png")
-
+# --- HEADER WITH LOGO (NO FILE DEPENDENCY) ---
 st.markdown(
-    f"""
+    """
     <div style="display:flex; align-items:center; gap:10px;">
-        <img src="data:image/png;base64,{logo}" width="40">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Behr_logo.svg" width="40">
         <h1 style="margin:0;">Fleet Status by Project</h1>
     </div>
     """,
@@ -30,13 +24,10 @@ def normalize_status(value):
 
     if s in ["ok", "running", "healthy", "online"]:
         return "OK"
-
     if "pending release" in s:
         return "Pending Release"
-
     if "down" in s or "offline" in s:
         return "Down"
-
     if "issue" in s or "warning" in s:
         return "Running with issues"
 
@@ -86,12 +77,8 @@ def load_workbook(uploaded_file):
                 "Project": sheet,
                 "Fleet Size": fleet_size,
                 "OK": int(counts.get("OK", 0)),
-                "Running with issues": int(
-                    counts.get("Running with issues", 0)
-                ),
-                "Pending Release": int(
-                    counts.get("Pending Release", 0)
-                ),
+                "Running with issues": int(counts.get("Running with issues", 0)),
+                "Pending Release": int(counts.get("Pending Release", 0)),
                 "Down": int(counts.get("Down", 0)),
                 "Other": int(counts.get("Other", 0)),
                 "Unknown": int(counts.get("Unknown", 0)),
@@ -142,6 +129,7 @@ if uploaded:
 
     summary_df, project_details = load_workbook(uploaded)
 
+    # -------- GRAPH --------
     fig = go.Figure()
 
     fig.add_bar(
@@ -182,11 +170,11 @@ if uploaded:
         hovermode="x unified"
     )
 
-    # 🔥 Make X-axis labels bold
     fig.update_xaxes(tickfont=dict(size=12, family="Arial Black"))
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # -------- PROJECT SELECT --------
     st.subheader("Project Summary")
 
     project_list = summary_df["Project"].tolist()
@@ -215,6 +203,7 @@ if uploaded:
         summary_df["Project"] == selected_project
     ].iloc[0]
 
+    # -------- METRICS --------
     c1, c2, c3, c4, c5 = st.columns(5)
 
     c1.metric("Fleet Size", int(row["Fleet Size"]))
@@ -223,6 +212,7 @@ if uploaded:
     c4.metric("Pending", int(row["Pending Release"]))
     c5.metric("Down", int(row["Down"]))
 
+    # -------- TABLE --------
     st.markdown(
         """
         <style>
